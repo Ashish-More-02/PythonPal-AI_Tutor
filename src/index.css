@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+    .prose-invert {
+        --tw-prose-body: theme(colors.gray.100);
+    }
+
+    .chat-window {
+        scroll-behavior: smooth;
+    }
+}
+
+
+/* *{
+    scrollbar-color: rgb(54, 61, 66) rgb(30, 32, 43) ;
+} */
