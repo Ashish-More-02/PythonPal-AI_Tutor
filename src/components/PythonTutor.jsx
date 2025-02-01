@@ -20,6 +20,7 @@ const PythonTutor = () => {
   const [value, setValue] = useState("");
   const [jsonResult, setJsonResult] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
+  const [copyBtn, setCopyBtn] = useState("copy");
 
   // system prompt
   const systemPrompt = systemPrompt_txt;
@@ -401,14 +402,20 @@ const PythonTutor = () => {
       </div>
       <div className="sm:block hidden w-[40%] mx-4">
         {/* buttons */}
-        <div className={` text-white buttons flex justify-end align-bottom absolute top-10 right-6`}>
-        <button
-            onClick={() => {
-              
+        <div
+          className={` text-white buttons flex justify-end align-bottom absolute top-10 right-6`}
+        >
+          <button
+            onClick={async () => {
+              await navigator.clipboard.writeText(value);
+              setCopyBtn("✅ copied");
+              setTimeout(() => {
+                setCopyBtn("copy");
+              },2000);
             }}
             className=" mx-2 bg-gray-700 py-2 px-6 rounded-lg text-inherit"
           >
-            copy
+            {copyBtn}
           </button>
           <button
             onClick={handleRunCode}
