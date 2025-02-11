@@ -8,19 +8,22 @@ import {
 import { systemPrompt_txt } from "../utils/System_Prompt";
 import { FiSun, FiMoon } from "react-icons/fi";
 import CodeEditor from "./CodeEditor";
+import Header from "./Header";
+import APIkeyModal from "./APIkeyModal";
+import Description from "./Description";
 
 const PythonTutor = () => {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [apiKey, setApiKey] = useState(import.meta.env.VITE_GROQ_API_KEY || "");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
-  const [textAreaValue, setTextAreaValue] = useState("");
-  const [value, setValue] = useState("");
-  const [jsonResult, setJsonResult] = useState("");
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [copyBtn, setCopyBtn] = useState("copy");
+  const [messages, setMessages] = useState([]); // Stores all messages (chat history)
+  const [input, setInput] = useState(""); // Stores user input
+  const [apiKey, setApiKey] = useState(import.meta.env.VITE_GROQ_API_KEY || ""); // API key
+  const [isLoading, setIsLoading] = useState(false); // Tracks loading state
+  const [error, setError] = useState(""); // Stores error messages
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false); // Controls API modal visibility
+  const [textAreaValue, setTextAreaValue] = useState(""); // For input text area
+  const [value, setValue] = useState(""); // Stores the value of the code editor
+  const [jsonResult, setJsonResult] = useState(""); // Stores execution results
+  const [isExecuting, setIsExecuting] = useState(false); // Tracks execution status
+  const [copyBtn, setCopyBtn] = useState("copy"); // Controls copy button text
 
   // system prompt
   const systemPrompt = systemPrompt_txt;
@@ -35,10 +38,12 @@ const PythonTutor = () => {
     }
   }, []);
 
+  // handle sending user message to groq and getting AI response
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim() || !apiKey) {
       setError("Please enter a message and valid API key");
+      alert("Please enter a message and valid API key");
       return;
     }
 
@@ -49,9 +54,11 @@ const PythonTutor = () => {
       const groq = new Groq({ apiKey, dangerouslyAllowBrowser: true });
       const userMessage = { role: "user", content: input };
 
+      // takes previous array elements and append the userMessage at the end
       setMessages((prev) => [...prev, userMessage]);
       setInput("");
 
+      // API code for grouq
       const stream = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [
@@ -91,6 +98,7 @@ const PythonTutor = () => {
 
   const [isDarkMode, setIsDarkMode] = useState(true);
 
+  // formating of AI message to make visually pleasing , and easy to read messages
   const parseMessageContent = (content) => {
     const parts = content.split(
       /(```python[\s\S]*?```|\*\*.*?\*\*|^#{1,3}\s.+$)/gm
@@ -173,6 +181,7 @@ const PythonTutor = () => {
     });
   };
 
+  // runs the code in code Editor and gets the response
   async function handleRunCode() {
     const sourceCode = value;
     if (!sourceCode) return;
@@ -204,6 +213,7 @@ const PythonTutor = () => {
     }
   }
 
+  // UI logic
   return (
     <div
       className={`min-h-screen transition-colors duration-300 flex w-full ${
@@ -212,71 +222,17 @@ const PythonTutor = () => {
     >
       <div className="max-w-4xl min-w-[60%] mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
-            PythonPal 🐍
-          </h1>
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-2 rounded-full hover:bg-gray-700/20 transition-colors"
-          >
-            {isDarkMode ? <FiMoon size={20} /> : <FiSun size={20} />}
-          </button>
-        </div>
+        <Header setIsDarkMode={setIsDarkMode} isDarkMode={isDarkMode}></Header>
 
         {/* API Key Modal */}
         {showApiKeyModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-10">
-            <div
-              className={`p-6 rounded-xl ${
-                isDarkMode ? "bg-gray-800" : "bg-white"
-              } w-96`}
-            >
-              <h3 className="text-xl font-semibold mb-4">🔑 API Key Setup</h3>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Enter your Groq API key"
-                className={`w-full p-3 rounded-lg mb-4 ${
-                  isDarkMode ? "bg-gray-700" : "bg-gray-100"
-                }`}
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    localStorage.setItem("groq-api-key", apiKey);
-                    setShowApiKeyModal(false);
-                  }}
-                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => setShowApiKeyModal(false)}
-                  className="flex-1 bg-gray-500/20 hover:bg-gray-500/30 px-4 py-2 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-              <div className="pt-5 bg-inherit ">
-                <div>
-                  Enter your groq API here{" "}
-                  <a
-                    href="https://groq.com/"
-                    className="text-blue-400 hover:underline"
-                    target="blank"
-                  >
-                    Offical Groq website
-                  </a>
-                </div>
-                <p className="text-gray-300 text-sm">
-                  Groq cloud provides free open source LLM models in the form of
-                  API.
-                </p>
-              </div>
-            </div>
-          </div>
+          <APIkeyModal
+            apiKey={apiKey}
+            setApiKey={setApiKey}
+            setShowApiKeyModal={setShowApiKeyModal}
+            setIsDarkMode={setIsDarkMode}
+            isDarkMode={isDarkMode}
+          ></APIkeyModal>
         )}
 
         {/* Chat Interface */}
@@ -344,61 +300,10 @@ const PythonTutor = () => {
         </div>
 
         {/* Description Section */}
-        <div
-          className={`p-6 rounded-xl font-mono ${
-            isDarkMode ? "bg-gray-800" : "bg-white"
-          } shadow-xl`}
-        >
-          <h2 className="text-2xl font-semibold mb-4">
-            Welcome to PythonPal! 🚀
-          </h2>
-          <p
-            className={`mb-4  ${
-              isDarkMode ? "text-gray-300" : "text-gray-800"
-            }`}
-          >
-            PythonPal is an interactive learning platform that makes Python
-            programming fun and accessible for kids. Our AI tutor adapts to your
-            learning pace with engaging lessons and real-time feedback.
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <div
-              className={`p-4 rounded-lg ${
-                isDarkMode ? "bg-gray-700" : "bg-gray-100"
-              }`}
-            >
-              <h3 className="font-semibold mb-2">Features ✨</h3>
-              <ul className="space-y-1">
-                <li>🎮 Interactive Challenges</li>
-                <li>🧑🏻‍🏫 Personalized tutor</li>
-                <li>🤖 AI-Powered Help</li>
-              </ul>
-            </div>
-            <div
-              className={`p-4 rounded-lg ${
-                isDarkMode ? "bg-gray-700" : "bg-gray-100"
-              }`}
-            >
-              <h3 className="font-semibold mb-2">Getting Started 🐣</h3>
-              <ul className="space-y-1">
-                <li>1. Set your API key</li>
-                <li>2. Ask coding questions</li>
-                <li>3. Complete challenges</li>
-              </ul>
-            </div>
-          </div>
-          <div className="text-center text-blue-300 pt-4 flex justify-center text-sm">
-            powerd by
-            <p className="bg-gray-700 text-cyan-400 px-1 rounded-md ">
-              llama-3.3-70b-versatile
-            </p>
-            and
-            <p className="bg-gray-700 text-cyan-400 px-1 rounded-md">
-              groq cloud
-            </p>
-            .
-          </div>
-        </div>
+        <Description
+          isDarkMode={isDarkMode}
+          setIsDarkMode={setIsDarkMode}
+        ></Description>
       </div>
       <div className="sm:block hidden w-[40%] mx-4">
         {/* buttons */}
@@ -411,7 +316,7 @@ const PythonTutor = () => {
               setCopyBtn("✅ copied");
               setTimeout(() => {
                 setCopyBtn("copy");
-              },2000);
+              }, 2000);
             }}
             className=" mx-2 bg-gray-700 py-2 px-6 rounded-lg text-inherit"
           >
