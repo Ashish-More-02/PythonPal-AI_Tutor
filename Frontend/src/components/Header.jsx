@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import SignIn from "./SignIn";
 
 const Header = ({ setIsDarkMode, isDarkMode }) => {
+  console.log(isDarkMode);
   return (
     <div className="flex justify-between items-center mb-8">
       <h1 className="text-3xl font-bold bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
