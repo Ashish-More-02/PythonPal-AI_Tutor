@@ -11,8 +11,10 @@ import CodeEditor from "./CodeEditor";
 import Header from "./Header";
 import APIkeyModal from "./APIkeyModal";
 import Description from "./Description";
+import { useDarkMode } from "../context/DarkModeContext";
 
-const PythonTutor = ({isDarkMode , setIsDarkMode}) => {
+const PythonTutor = () => {
+  const { isDarkMode, setIsDarkMode } = useDarkMode();
   const [messages, setMessages] = useState([]); // Stores all messages (chat history)
   const [input, setInput] = useState(""); // Stores user input
   const [apiKey, setApiKey] = useState(import.meta.env.VITE_GROQ_API_KEY || ""); // API key
@@ -95,7 +97,6 @@ const PythonTutor = ({isDarkMode , setIsDarkMode}) => {
       setIsLoading(false);
     }
   };
-
 
   // formating of AI message to make visually pleasing , and easy to read messages
   const parseMessageContent = (content) => {

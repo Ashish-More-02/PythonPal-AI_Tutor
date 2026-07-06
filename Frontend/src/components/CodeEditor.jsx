@@ -11,7 +11,7 @@ const CodeEditor = ({ isDarkMode, value, onChange, jsonResult ,isExecuting}) => 
       } w-full  h-[87%] mt-24 caret-gray-50 focus:border-none rounded-xl shadow-xl p-3 text-lg font-mono`}
     >
       <Editor
-        height="60%"
+        height="56.5%"
         theme={`${isDarkMode ? "vs-dark" : "vs-light"}`}
         defaultLanguage="python"
         defaultValue={`# your friendly neighbourhood python editor!`}
