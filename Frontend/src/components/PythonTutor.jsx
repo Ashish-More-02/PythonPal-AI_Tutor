@@ -69,7 +69,7 @@ const PythonTutor = () => {
           userMessage,
         ],
         temperature: 1,
-        max_completion_tokens: 30000,
+        max_completion_tokens: 4092,
         stream: true,
       });
 
