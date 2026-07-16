@@ -1,15 +1,52 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer utilities {
-    .prose-invert {
-        --tw-prose-body: theme(colors.gray.100);
-    }
+/* v4 auto-discovers sources but deliberately skips node_modules, so Streamdown's
+   prebuilt classes have to be registered by hand or its markdown renders unstyled.
+   Paths are relative to this file. */
+@source "../node_modules/streamdown/dist/*.js";
+@source "../node_modules/@streamdown/code/dist/*.js";
 
-    .chat-window {
-        scroll-behavior: smooth;
-    }
+/* v4's built-in `dark:` follows prefers-color-scheme. Dark mode here is React
+   state that toggles a root `.dark` class, so repoint the variant at that. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* The shadcn/ui token names Streamdown styles against, mapped onto this app's
+   palette. `inline` makes utilities resolve --background & co. at use time, so
+   the `.dark` overrides below actually take effect. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-sidebar: var(--sidebar);
+}
+
+/* Tuned to sit on top of the chat bubbles rather than the page background. */
+@layer base {
+  :root {
+    --background: var(--color-gray-50);
+    --foreground: var(--color-gray-900);
+    --muted: var(--color-gray-200);
+    --muted-foreground: var(--color-gray-500);
+    --border: var(--color-gray-300);
+    --primary: var(--color-blue-600);
+    --primary-foreground: var(--color-white);
+    --sidebar: var(--color-gray-200);
+  }
+
+  .dark {
+    --background: var(--color-gray-900);
+    --foreground: var(--color-gray-100);
+    --muted: var(--color-gray-700);
+    --muted-foreground: var(--color-gray-400);
+    --border: var(--color-gray-600);
+    --primary: var(--color-blue-400);
+    --primary-foreground: var(--color-gray-900);
+    --sidebar: var(--color-gray-800);
+  }
 }
 
 

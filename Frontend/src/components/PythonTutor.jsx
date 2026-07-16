@@ -1,17 +1,17 @@
-import { useState, useEffect, version } from "react";
+import { useState, useEffect } from "react";
 import { Groq } from "groq-sdk/index.mjs";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import {
-  vscDarkPlus,
-  vs,
-} from "react-syntax-highlighter/dist/esm/styles/prism";
 import { systemPrompt_txt } from "../utils/System_Prompt";
-import { FiSun, FiMoon } from "react-icons/fi";
 import CodeEditor from "./CodeEditor";
 import Header from "./Header";
 import APIkeyModal from "./APIkeyModal";
 import Description from "./Description";
 import { useDarkMode } from "../context/DarkModeContext";
+import { Streamdown } from "streamdown";
+import { code } from "@streamdown/code";
+
+// Streamdown's plugin set is identity-compared, so it must be a stable module
+// constant rather than an inline object.
+const streamdownPlugins = { code };
 
 const PythonTutor = () => {
   const { isDarkMode, setIsDarkMode } = useDarkMode();
@@ -98,89 +98,6 @@ const PythonTutor = () => {
     }
   };
 
-  // formating of AI message to make visually pleasing , and easy to read messages
-  const parseMessageContent = (content) => {
-    const parts = content.split(
-      /(```python[\s\S]*?```|\*\*.*?\*\*|^#{1,3}\s.+$)/gm
-    );
-
-    return parts.map((part, index) => {
-      if (!part) return null;
-
-      if (part.startsWith("```python")) {
-        const code = part
-          .replace(/```python/g, "")
-          .replace(/```/g, "")
-          .trim();
-        return (
-          <SyntaxHighlighter
-            key={index}
-            language="python"
-            style={isDarkMode ? vscDarkPlus : vs}
-            customStyle={{
-              borderRadius: "0.5rem",
-              margin: "1rem 0",
-              padding: "1rem",
-              background: isDarkMode ? "#1e1e1e" : "#f3f4f6",
-            }}
-          >
-            {code}
-          </SyntaxHighlighter>
-        );
-      } else if (part.startsWith("#")) {
-        const level = part.match(/^#+/)[0].length;
-        const headerText = part.replace(/^#+\s+/, "").trim();
-        const headerClass =
-          {
-            1: `text-3xl font-extrabold mt-8 mb-4 ${
-              isDarkMode ? "text-blue-400" : "text-blue-600"
-            }`,
-            2: `text-2xl font-bold mt-6 mb-3 ${
-              isDarkMode ? "text-blue-400" : "text-blue-600"
-            }`,
-            3: `text-xl font-semibold mt-4 mb-2 ${
-              isDarkMode ? "text-blue-400" : "text-blue-600"
-            }`,
-          }[level] || "";
-
-        return (
-          <div key={index} className={headerClass}>
-            {headerText}
-          </div>
-        );
-      } else if (part.startsWith("**") && part.endsWith("**")) {
-        const headerText = part.slice(2, -2).trim();
-        return (
-          <div
-            className={`text-lg font-bold mb-2 ${
-              isDarkMode ? "text-purple-400" : "text-purple-600"
-            }`}
-          >
-            {headerText}
-          </div>
-        );
-      }
-
-      // Process text with bold formatting and line breaks
-      return part.split(/(\*\*.+?\*\*|\n)/g).map((text, textIndex) => {
-        if (text.startsWith("**") && text.endsWith("**")) {
-          const boldText = text.slice(2, -2).trim();
-          return (
-            <span
-              key={`${index}-${textIndex}`}
-              className="font-semibold text-yellow-400"
-            >
-              {boldText}
-            </span>
-          );
-        } else if (text === "\n") {
-          return <br key={`${index}-${textIndex}`} />;
-        }
-        return <span key={`${index}-${textIndex}`}>{text}</span>;
-      });
-    });
-  };
-
   // runs the code in code Editor and gets the response
   async function handleRunCode() {
     const sourceCode = value;
@@ -237,11 +154,11 @@ const PythonTutor = () => {
 
         {/* Chat Interface */}
         <div
-          className={`rounded-xl p-4 mb-6 font-sans text-lg  ${
+          className={`rounded-xl p-4 mb-6 font-sans text-lg h-[83vh] ${
             isDarkMode ? "bg-gray-800" : "bg-white"
           } shadow-xl`}
         >
-          <div className="h-96 overflow-y-auto space-y-4 mb-4">
+          <div className="h-[90%] overflow-y-auto space-y-4 mb-4">
             {messages.map((msg, i) => (
               <div
                 key={i}
@@ -251,9 +168,17 @@ const PythonTutor = () => {
                     : `${isDarkMode ? "bg-gray-700" : "bg-gray-100"}`
                 }`}
               >
-                <div className="prose prose-invert">
-                  {parseMessageContent(msg.content)}
-                </div>
+                <Streamdown
+                  plugins={streamdownPlugins}
+                  animated
+                  isAnimating={
+                    isLoading &&
+                    msg.role === "assistant" &&
+                    i === messages.length - 1
+                  }
+                >
+                  {msg.content}
+                </Streamdown>
               </div>
             ))}
             {isLoading && (

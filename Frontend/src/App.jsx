@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import PythonTutor from "./components/PythonTutor";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import SignUp from "./components/SignUp";
@@ -25,6 +25,12 @@ const myroutes = createBrowserRouter([
 
 const App = () => {
   const [isDarkMode, setIsDarkMode] = useState(true);
+
+  // Streamdown styles itself with Tailwind `dark:` variants, which read the
+  // root class rather than this context.
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDarkMode);
+  }, [isDarkMode]);
 
   return (
     <DarkModeContext.Provider value={{ isDarkMode, setIsDarkMode }}>
