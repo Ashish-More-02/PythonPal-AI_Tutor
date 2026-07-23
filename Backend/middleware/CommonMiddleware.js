@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 // this middleware will check the jwt token for any request and then we can proceed with the request
 const checkJWTtoken = async (req, res, next) => {
   // this will hold the value of auth header
-  const header = req.header.authorization;
+  const header = req.headers.authorization;
 
   if (!header) {
     return res.status(401).json({error:"Authorization headers are not provided, please provide it with JWT token"});

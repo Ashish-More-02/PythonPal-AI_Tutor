@@ -33,9 +33,9 @@ const Description = ({ isDarkMode, setIsDarkMode }) => {
         >
           <h3 className="font-semibold mb-2">Getting Started 🐣</h3>
           <ul className="space-y-1">
-            <li>1. Set your API key</li>
-            <li>2. Ask coding questions</li>
-            <li>3. Complete challenges</li>
+            <li>1. Ask coding questions</li>
+            <li>2. Complete challenges</li>
+            <li>3. Run code in the editor</li>
           </ul>
         </div>
       </div>

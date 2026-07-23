@@ -1,9 +1,6 @@
-import { useState, useEffect } from "react";
-import { Groq } from "groq-sdk/index.mjs";
-import { systemPrompt_txt } from "../utils/System_Prompt";
+import { useState } from "react";
 import CodeEditor from "./CodeEditor";
 import Header from "./Header";
-import APIkeyModal from "./APIkeyModal";
 import Description from "./Description";
 import { useDarkMode } from "../context/DarkModeContext";
 import { Streamdown } from "streamdown";
@@ -13,83 +10,73 @@ import { code } from "@streamdown/code";
 // constant rather than an inline object.
 const streamdownPlugins = { code };
 
+// Our own backend now holds the Groq key and the system prompt.
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 const PythonTutor = () => {
   const { isDarkMode, setIsDarkMode } = useDarkMode();
   const [messages, setMessages] = useState([]); // Stores all messages (chat history)
   const [input, setInput] = useState(""); // Stores user input
-  const [apiKey, setApiKey] = useState(import.meta.env.VITE_GROQ_API_KEY || ""); // API key
   const [isLoading, setIsLoading] = useState(false); // Tracks loading state
   const [error, setError] = useState(""); // Stores error messages
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false); // Controls API modal visibility
   const [textAreaValue, setTextAreaValue] = useState(""); // For input text area
   const [value, setValue] = useState(""); // Stores the value of the code editor
   const [jsonResult, setJsonResult] = useState(""); // Stores execution results
   const [isExecuting, setIsExecuting] = useState(false); // Tracks execution status
   const [copyBtn, setCopyBtn] = useState("copy"); // Controls copy button text
 
-  // system prompt
-  const systemPrompt = systemPrompt_txt;
-
-  useEffect(() => {
-    // Check localStorage first, then fallback to .env
-    const savedKey = localStorage.getItem("groq-api-key");
-    if (savedKey) {
-      setApiKey(savedKey);
-    } else if (import.meta.env.VITE_GROQ_API_KEY) {
-      setApiKey(import.meta.env.VITE_GROQ_API_KEY);
-    }
-  }, []);
-
-  // handle sending user message to groq and getting AI response
+  // handle sending user message to our backend and getting the AI response
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!input.trim() || !apiKey) {
-      setError("Please enter a message and valid API key");
-      alert("Please enter a message and valid API key");
+    if (!input.trim()) {
+      setError("Please enter a message");
       return;
     }
 
     setIsLoading(true);
     setError("");
 
+    const userMessage = { role: "user", content: input };
+    // The backend is stateless, so we send the whole conversation every time.
+    // `messages` state updates asynchronously, so build the history explicitly.
+    const history = [...messages, userMessage];
+
+    setMessages(history);
+    setInput("");
+
     try {
-      const groq = new Groq({ apiKey, dangerouslyAllowBrowser: true });
-      const userMessage = { role: "user", content: input };
-
-      // takes previous array elements and append the userMessage at the end
-      setMessages((prev) => [...prev, userMessage]);
-      setInput("");
-
-      // API code for grouq
-      const stream = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages,
-          userMessage,
-        ],
-        temperature: 1,
-        max_completion_tokens: 4092,
-        stream: true,
+      const response = await fetch(`${API_URL}/ai/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: history }),
       });
 
+      console.log(response);
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `Request failed (${response.status})`);
+      }
+
+      // Add an empty assistant bubble now, then keep rewriting it as text arrives.
+      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+      const reader = response.body.getReader(); // contains raw bytes of data.
+      const decoder = new TextDecoder(); // converts the raw bytes into readable text.
       let assistantContent = "";
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || "";
-        assistantContent += content;
-        setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          if (last?.role === "assistant") {
-            return [
-              ...prev.slice(0, -1),
-              {
-                ...last,
-                content: assistantContent,
-              },
-            ];
-          }
-          return [...prev, { role: "assistant", content: assistantContent }];
-        });
+
+      while (true) {
+        // Named `chunk`, not `value`, so it doesn't shadow the code-editor state.
+        const { done, value: chunk } = await reader.read();
+        if (done) break;
+
+        // `stream: true` lets the decoder hold back a half-received emoji or
+        // accented character until its remaining bytes turn up in the next chunk.
+        assistantContent += decoder.decode(chunk, { stream: true });
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          { role: "assistant", content: assistantContent },
+        ]);
       }
     } catch (err) {
       setError(`Error: ${err.message}`);
@@ -141,17 +128,6 @@ const PythonTutor = () => {
         {/* Header */}
         <Header setIsDarkMode={setIsDarkMode} isDarkMode={isDarkMode}></Header>
 
-        {/* API Key Modal */}
-        {showApiKeyModal && (
-          <APIkeyModal
-            apiKey={apiKey}
-            setApiKey={setApiKey}
-            setShowApiKeyModal={setShowApiKeyModal}
-            setIsDarkMode={setIsDarkMode}
-            isDarkMode={isDarkMode}
-          ></APIkeyModal>
-        )}
-
         {/* Chat Interface */}
         <div
           className={`rounded-xl p-4 mb-6 font-sans text-lg h-[83vh] ${
@@ -200,7 +176,7 @@ const PythonTutor = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask Codey about Python..."
-              disabled={!apiKey || isLoading}
+              disabled={isLoading}
               className={`flex-1 p-3 rounded-lg font-mono ${
                 isDarkMode
                   ? "bg-gray-700 focus:ring-2 focus:ring-blue-500"
@@ -209,17 +185,10 @@ const PythonTutor = () => {
             />
             <button
               type="submit"
-              disabled={!apiKey || isLoading}
+              disabled={isLoading}
               className="p-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Send
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowApiKeyModal(true)}
-              className="p-3 bg-gray-500/20 hover:bg-gray-500/30 rounded-lg transition-colors"
-            >
-              🔑
             </button>
           </form>
         </div>

@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const PORT = 3000;
 const authRoutes = require("./routes/AuthRoutes");
+const aiRoutes = require("./routes/AIRoutes");
 const {connectDB} = require("./config/dbConfig");
 
 const app = express();
@@ -32,6 +33,9 @@ app.get("/", (req, res) => {
 
 // Auth routes.
 app.use("/",authRoutes);
+
+// AI routes.
+app.use("/ai", aiRoutes);
 
 // connect to the database 
 connectDB();

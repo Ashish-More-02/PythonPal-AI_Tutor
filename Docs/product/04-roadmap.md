@@ -7,11 +7,11 @@ real and usable. Ship, watch real people use it, then continue.
 
 Non-negotiable foundation. No new features.
 
-- [ ] **Rotate the leaked MongoDB password** and move the connection string to
+- [x] **Rotate the leaked MongoDB password** and move the connection string to
       `process.env.MONGO_URI`. Confirm `.env` is gitignored.
 - [ ] **Move the Groq API call behind the Express backend.** Frontend calls our API; the
       key lives only on the server. Remove `dangerouslyAllowBrowser`.
-- [ ] **Hash passwords** (bcrypt) on signup; verify hash on signin. Issue a JWT.
+- [x] **Hash passwords** (bcrypt) on signup; verify hash on signin. Issue a JWT.
 
 *Outcome: it's a real, safe-to-deploy app instead of a demo.*
 
