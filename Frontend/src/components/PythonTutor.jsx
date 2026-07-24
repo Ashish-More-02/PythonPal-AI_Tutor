@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import CodeEditor from "./CodeEditor";
 import Header from "./Header";
 import Description from "./Description";
 import { useDarkMode } from "../context/DarkModeContext";
+import { useAuth } from "../context/AuthContext";
 import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 
@@ -15,6 +17,8 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const PythonTutor = () => {
   const { isDarkMode, setIsDarkMode } = useDarkMode();
+  const { token, logout } = useAuth();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState([]); // Stores all messages (chat history)
   const [input, setInput] = useState(""); // Stores user input
   const [isLoading, setIsLoading] = useState(false); // Tracks loading state
@@ -47,11 +51,20 @@ const PythonTutor = () => {
     try {
       const response = await fetch(`${API_URL}/ai/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          // Every protected request carries the JWT; the backend middleware verifies it.
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ messages: history }),
       });
 
-      console.log(response);
+      // Token missing/expired/tampered → log out and send them back to login.
+      if (response.status === 401) {
+        logout();
+        navigate("/signin");
+        return;
+      }
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));

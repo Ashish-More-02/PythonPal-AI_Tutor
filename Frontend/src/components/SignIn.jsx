@@ -1,17 +1,30 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
+import { useAuth } from "../context/AuthContext";
 
 const SignIn = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState(""); // shown in a red banner
+  const [isSubmitting, setIsSubmitting] = useState(false); // disables the button
 
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const {isDarkMode} = useDarkMode();
 
   const handleSignIn = async (e) => {
     e.preventDefault();
+    setError("");
+
+    // Client-side check first, so we don't even hit the server for empty fields.
+    if (!email.trim() || !password) {
+      setError("Please enter both your email and password.");
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const response = await fetch("http://localhost:3000/signin", {
@@ -23,14 +36,18 @@ const SignIn = () => {
       const data = await response.json();
 
       if (response.ok) {
-        alert("login successful");
-        navigate("/");
+        // Store the user + JWT, then drop them into the product.
+        login(data.user, data.token);
+        navigate("/app");
       } else {
-        alert("error : please try again !");
+        // Show the backend's specific message (bad credentials, no account, ...).
+        setError(data.error || "Login failed. Please try again.");
       }
-    } catch (error) {
-      console.error("Login error:", error);
-      alert("error : please try again !");
+    } catch (err) {
+      // fetch only throws when the network/server is unreachable.
+      setError("Can't reach the server. Please check it's running and try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -73,11 +90,18 @@ const SignIn = () => {
             <input type="checkbox" /> <p className="mx-2 my-2">Remember me</p>
           </div>
 
+          {error && (
+            <div className="bg-red-500/20 border border-red-500/40 text-red-300 rounded-lg p-3 my-2 text-sm">
+              {error}
+            </div>
+          )}
+
           <button
-            className="bg-green-600 w-full rounded-lg text-center py-2 font-semibold text-xl"
+            className="bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed w-full rounded-lg text-center py-2 font-semibold text-xl transition-colors"
             type="submit"
+            disabled={isSubmitting}
           >
-            Login
+            {isSubmitting ? "Logging in..." : "Login"}
           </button>
           <div className={isDarkMode? "text-gray-300 flex items-center justify-center mt-6 text-center w-full" : "flex items-center justify-center mt-6 text-center w-full"}>
             <p>Don't have a account?</p>

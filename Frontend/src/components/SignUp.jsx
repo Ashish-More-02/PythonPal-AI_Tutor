@@ -2,36 +2,57 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
+import { useAuth } from "../context/AuthContext";
 
 const SignUp = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [cnfpassword, setCnfPassword] = useState("");
+  const [error, setError] = useState(""); // red banner
+  const [isSubmitting, setIsSubmitting] = useState(false); // disables the button
 
   const {isDarkMode} = useDarkMode();
+  const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleSignUp = async (e) => {
     e.preventDefault();
+    setError("");
+
+    // Client-only checks (the server never sees the confirm field).
+    if (!name.trim() || !email.trim() || !password) {
+      setError("Please fill in every field.");
+      return;
+    }
+    if (password !== cnfpassword) {
+      setError("The two passwords don't match.");
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const response = await fetch("http://localhost:3000/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name ,email, password }),
+        body: JSON.stringify({ name, email, password }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        alert("signup successful");
-        navigate("/signin");
+        // Backend hands back a token, so registering logs you straight in.
+        login(data.user, data.token);
+        navigate("/app");
       } else {
-        alert("error : please try again !");
+        // Specific backend message: weak password, email taken, invalid email...
+        setError(data.error || "Sign up failed. Please try again.");
       }
-    } catch (error) {
-      console.error("Signup error:", error);
-      alert("error : please try again !");
+    } catch (err) {
+      setError("Can't reach the server. Please check it's running and try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -39,8 +60,6 @@ const SignUp = () => {
   const FormStyle = isDarkMode? "w-[450px] h-[70%] bg-gray-800 rounded-xl p-6":"w-[450px] h-[60%] bg-gray-200 rounded-xl p-6";
   const inputStyle = isDarkMode? "w-full bg-slate-600 p-2 font-semibold my-2 rounded-lg" : "w-full bg-slate-300 p-2 font-semibold my-2 rounded-lg"
 
-
-  const navigate = useNavigate();
   return (
     <div
       className={MainStyle}
@@ -91,11 +110,18 @@ const SignUp = () => {
             }}
           />
 
+          {error && (
+            <div className="bg-red-500/20 border border-red-500/40 text-red-300 rounded-lg p-3 my-2 text-sm">
+              {error}
+            </div>
+          )}
+
           <button
-            className="bg-green-600 my-2 w-full rounded-lg text-center py-2 font-semibold text-xl"
+            className="bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed my-2 w-full rounded-lg text-center py-2 font-semibold text-xl transition-colors"
             type="submit"
+            disabled={isSubmitting}
           >
-            Sign up
+            {isSubmitting ? "Creating account..." : "Sign up"}
           </button>
           <div className={isDarkMode? "text-gray-300 flex items-center justify-center mt-6 text-center w-full" : "flex items-center justify-center mt-6 text-center w-full"}>
             <p>Already have a account?</p>

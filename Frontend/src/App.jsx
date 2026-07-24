@@ -3,15 +3,19 @@ import PythonTutor from "./components/PythonTutor";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import SignUp from "./components/SignUp";
 import SignIn from "./components/SignIn";
+import Landing from "./components/homepage/Landing";
+import ProtectedRoute from "./utils/ProtectedRoute";
 import { DarkModeContext } from "./context/DarkModeContext";
+import { AuthProvider } from "./context/AuthContext";
 
 // Created once, outside the component. RouterProvider freezes on the first
 // router it receives, so recreating it on every render (and baking props into
 // the route elements) would make prop updates like dark mode never re-render.
 const myroutes = createBrowserRouter([
   {
+    // Public homepage: pick Login or Register.
     path: "/",
-    element: <PythonTutor></PythonTutor>,
+    element: <Landing></Landing>,
   },
   {
     path: "/signup",
@@ -20,6 +24,15 @@ const myroutes = createBrowserRouter([
   {
     path: "/signin",
     element: <SignIn></SignIn>,
+  },
+  {
+    // The actual product — only reachable once logged in.
+    path: "/app",
+    element: (
+      <ProtectedRoute>
+        <PythonTutor></PythonTutor>
+      </ProtectedRoute>
+    ),
   },
 ]);
 
@@ -33,9 +46,11 @@ const App = () => {
   }, [isDarkMode]);
 
   return (
-    <DarkModeContext.Provider value={{ isDarkMode, setIsDarkMode }}>
-      <RouterProvider router={myroutes}></RouterProvider>
-    </DarkModeContext.Provider>
+    <AuthProvider>
+      <DarkModeContext.Provider value={{ isDarkMode, setIsDarkMode }}>
+        <RouterProvider router={myroutes}></RouterProvider>
+      </DarkModeContext.Provider>
+    </AuthProvider>
   );
 };
 
