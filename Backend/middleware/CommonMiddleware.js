@@ -6,14 +6,14 @@ const checkJWTtoken = async (req, res, next) => {
   const header = req.headers.authorization;
 
   if (!header) {
-    return res.status(401).json({error:"Authorization headers are not provided, please provide it with JWT token"});
+    return res.status(401).json({ error: "You must be logged in to do that." });
   }
 
   // token contain "Bearer <token_data>"
   const token = header.split(" ")[1];
 
   if (!token) {
-    return res.status(401).json({ error: "auth token not found!" });
+    return res.status(401).json({ error: "Auth token missing. Please log in again." });
   }
 
   // verify token using jwt.verify() method
@@ -24,7 +24,8 @@ const checkJWTtoken = async (req, res, next) => {
     req.user = UserPayload;
     next();
   } catch (err) {
-    return res.status(401).json({ error: "unable to decode jwt token" });
+    // Covers both a tampered token and an expired one.
+    return res.status(401).json({ error: "Session expired. Please log in again." });
   }
 };
 

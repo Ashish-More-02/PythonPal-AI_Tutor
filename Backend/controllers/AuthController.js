@@ -34,9 +34,25 @@ const signup = async (req, res) => {
       password: hashedPassword,
     });
 
-    return res.status(201).json({ message: "user registered successfully " });
+    // Issue a token right away so registering also logs the user in — no need
+    // to send them to the login page and make them type it all again.
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    return res.status(201).json({
+      message: "user registered successfully",
+      token,
+      user: { name: user.name, email: user.email },
+    });
   } catch (err) {
-    res.status(500).json({ error: "My server Error ", details: err });
+    // Duplicate email hits the unique index in the User schema.
+    if (err.code === 11000) {
+      return res
+        .status(409)
+        .json({ error: "An account with this email already exists." });
+    }
+    res.status(500).json({ error: "Server error. Please try again." });
   }
 };
 
@@ -71,6 +87,7 @@ const signin = async (req, res) => {
 
       return res.status(200).json({
         message: "login successful",
+        token,
         user: { name: user.name, email: user.email },
       });
     }
