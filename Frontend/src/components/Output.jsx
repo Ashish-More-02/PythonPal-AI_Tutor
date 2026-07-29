@@ -1,32 +1,54 @@
 import React from "react";
 
-const Output = ({ jsonResult, isExecuting ,isDarkMode }) => {
+const Output = ({ jsonResult, isExecuting, isDarkMode }) => {
   return (
     <div
-      className={`p-4 mt-4 rounded-lg max-w-full overflow-hidden ${
-        jsonResult?.message ? "bg-red-500/20" : "bg-green-500/20"
+      className={`mt-3 shrink-0 rounded-xl border p-4 max-h-[35vh] overflow-y-auto font-mono text-sm transition-colors duration-300 ${
+        isDarkMode
+          ? "bg-gray-950/80 border-gray-800 text-gray-200"
+          : "bg-gray-50 border-gray-200 text-gray-900"
       }`}
     >
-      <h1 className={`${isDarkMode ? "text-white" : "text-black"} text-lg font-semibold mb-2 `}>Output</h1>
-      
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-blue-500"></span>
+          Terminal Output
+        </h3>
+        {isExecuting && (
+          <span className="text-xs text-amber-400 font-mono animate-pulse flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-amber-400"></span>
+            Executing...
+          </span>
+        )}
+      </div>
+
       {isExecuting ? (
-        <div className="text-gray-400">Executing Code...</div>
+        <div className="text-sm font-mono text-gray-400 py-1">Running Python script...</div>
       ) : jsonResult?.run ? (
-        <div className="space-y-2 p-2 max-w-full">
-          <pre className="text-sm whitespace-pre-wrap break-words overflow-hidden">
-            {jsonResult.run.output || "No output"}
-          </pre>
+        <div className="space-y-2 font-mono text-sm">
+          {jsonResult.run.output ? (
+            <pre className="whitespace-pre-wrap break-words text-emerald-400 font-mono">
+              {jsonResult.run.output}
+            </pre>
+          ) : (
+            <div className="text-gray-500 italic text-xs">Program finished with no output.</div>
+          )}
           {jsonResult.run.stderr && (
-            <pre className="text-red-400 text-sm whitespace-pre-wrap break-words overflow-hidden">
-              Error: {jsonResult.run.stderr}
+            <pre className="whitespace-pre-wrap break-words text-red-400 pt-1 border-t border-red-500/20 font-mono">
+              {jsonResult.run.stderr}
             </pre>
           )}
         </div>
+      ) : jsonResult?.message ? (
+        <div className="text-sm font-mono text-red-400">{jsonResult.message}</div>
       ) : (
-        <div className="text-gray-400">No code executed yet</div>
+        <div className="text-xs font-mono text-gray-500 italic">
+          Run code to see output results here.
+        </div>
       )}
     </div>
   );
 };
 
 export default Output;
+

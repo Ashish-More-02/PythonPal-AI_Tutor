@@ -7,6 +7,7 @@ import Landing from "./components/homepage/Landing";
 import ProtectedRoute from "./utils/ProtectedRoute";
 import { DarkModeContext } from "./context/DarkModeContext";
 import { AuthProvider } from "./context/AuthContext";
+import AI_agent from "./pages/AI_agent";
 
 // Created once, outside the component. RouterProvider freezes on the first
 // router it receives, so recreating it on every render (and baking props into
@@ -30,7 +31,7 @@ const myroutes = createBrowserRouter([
     path: "/app",
     element: (
       <ProtectedRoute>
-        <PythonTutor></PythonTutor>
+        <AI_agent></AI_agent>
       </ProtectedRoute>
     ),
   },
