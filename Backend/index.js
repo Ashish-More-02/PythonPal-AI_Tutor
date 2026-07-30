@@ -6,6 +6,7 @@ const PORT = 3000;
 const authRoutes = require("./routes/AuthRoutes");
 const aiRoutes = require("./routes/AIRoutes");
 const {connectDB} = require("./config/dbConfig");
+const ideRoutes = require("./routes/IdeRoutes");
 
 const app = express();
 
@@ -36,6 +37,9 @@ app.use("/",authRoutes);
 
 // AI routes.
 app.use("/ai", aiRoutes);
+
+// IDE routes.
+app.use('/api/ide', ideRoutes);
 
 // connect to the database 
 connectDB();
