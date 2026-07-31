@@ -39,12 +39,34 @@ async function summarizeOldMessages(oldMessages) {
 }
 
 // Decide exactly which messages get sent to the model this turn:
-//   short chat  -> send everything
-//   long chat   -> [system prompt] + [summary of old turns] + [recent turns]
-async function buildContext(safeMessages) {
+//   short chat  -> [system prompt] + [attached code context] + [safeMessages]
+//   long chat   -> [system prompt] + [attached code context] + [summary of old turns] + [recent turns]
+async function buildContext(safeMessages, codeContext = null) {
+  const contextMessages = [{ role: "system", content: systemPrompt_txt }];
+
+  if (codeContext) {
+    let contextStr = "";
+    if (typeof codeContext === "object" && codeContext !== null) {
+      const fileName = codeContext.fileName || "Active File";
+      const content = codeContext.content || "";
+      if (content.trim()) {
+        contextStr = `Current Active File Context (${fileName}):\n\`\`\`python\n${content}\n\`\`\``;
+      }
+    } else if (typeof codeContext === "string" && codeContext.trim()) {
+      contextStr = `Current Active Code Context:\n\`\`\`python\n${codeContext.trim()}\n\`\`\``;
+    }
+
+    if (contextStr) {
+      contextMessages.push({
+        role: "system",
+        content: `Active Code Context provided by the student from their active codeEditor:\n${contextStr}\n\nUse this code context to directly answer the student's question, help them debug, or explain concepts in relation to their current code.`,
+      });
+    }
+  }
+
   // Short conversation — cheap enough to send in full, no summary needed.
   if (safeMessages.length <= SUMMARIZE_THRESHOLD) {
-    return [{ role: "system", content: systemPrompt_txt }, ...safeMessages];
+    return [...contextMessages, ...safeMessages];
   }
 
   const recent = safeMessages.slice(-KEEP_RECENT_MESSAGES);
@@ -53,16 +75,21 @@ async function buildContext(safeMessages) {
   try {
     const summary = await summarizeOldMessages(older);
     return [
-      { role: "system", content: systemPrompt_txt },
+      ...contextMessages,
       { role: "system", content: `Summary of the earlier conversation so far: ${summary}` },
       ...recent,
     ];
   } catch (err) {
     // If summarizing fails (rate limit, network, etc.), fall back to a plain
     // sliding window — drop the old messages rather than failing the whole reply.
-    return [{ role: "system", content: systemPrompt_txt }, ...recent];
+    return [...contextMessages, ...recent];
   }
 }
+
+// if it is long conversation, then we are sending 3 system messages each time, 
+// 1. default system prompt
+// 2. code context
+// 3. summarized messages
 
 
 module.exports = {

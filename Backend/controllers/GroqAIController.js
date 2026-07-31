@@ -12,10 +12,10 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const CHAT_MODEL = "openai/gpt-oss-120b";
 
 // POST /ai/chat
-// Body: { messages: [{ role: "user" | "assistant", content: "..." }, ...] }
+// Body: { messages: [{ role: "user" | "assistant", content: "..." }, ...], codeContext?: { fileName: string, content: string } | string }
 // Responds with a plain-text stream of the AI reply.
 const chatWithAI = async (req, res) => {
-  const { messages } = req.body;
+  const { messages, codeContext } = req.body;
 
   // The client controls this array, so never trust it as-is.
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -31,12 +31,10 @@ const chatWithAI = async (req, res) => {
     .filter((m) => m && (m.role === "user" || m.role === "assistant"))
     .map((m) => ({ role: m.role, content: String(m.content ?? "") }));
 
-  console.log(safeMessages);
-
   try {
     // Trim/summarize BEFORE the streaming call. Any rate-limit error from the
     // summary step also lands in the catch below, while headers are still unsent.
-    const outgoingMessages = await buildContext(safeMessages);
+    const outgoingMessages = await buildContext(safeMessages, codeContext);
 
     const stream = await groq.chat.completions.create({
       model: CHAT_MODEL,

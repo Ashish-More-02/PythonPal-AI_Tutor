@@ -8,15 +8,15 @@ import { ideApi } from "../API/ideAPI";
 import { buildFileTree } from "../utils/treeBuilder";
 import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
+import { getHeaderFileIcon ,renderFileIcon} from "../utils/RenderFileIcon";
 import { LuCopyCheck } from "react-icons/lu";
 import { FaRegCircleCheck } from "react-icons/fa6";
 import { IoPlayOutline } from "react-icons/io5";
-import { FiDelete, FiCode, FiSave } from "react-icons/fi";
+import { FiDelete, FiCode, FiSave, FiPlus, FiX } from "react-icons/fi";
 import { RiRobot2Line } from "react-icons/ri";
-import pythonIcon from "../assets/icons/python.png";
+import { FaArrowUp } from "react-icons/fa6";
 import markdownIcon from "../assets/icons/markdown.png";
-import { getHeaderFileIcon } from "../utils/RenderFileIcon";
-
+import pythonIcon from "../assets/icons/python.png";
 
 // Streamdown's plugin set is identity-compared, so it must be a stable module
 // constant rather than an inline object.
@@ -38,6 +38,8 @@ const PythonTutor = () => {
   const [jsonResult, setJsonResult] = useState(""); // Stores execution results
   const [isExecuting, setIsExecuting] = useState(false); // Tracks execution status
   const [copyBtn, setCopyBtn] = useState(""); // Controls copy button text
+  const [attachedContext, setAttachedContext] = useState(null); // Active file code context snapshot
+  const [isContextDisabled, setIsContextDisabled] = useState(false); // Manual removal flag
 
   // File tree / Workspace states
   const [rawNodes, setRawNodes] = useState([]);
@@ -54,6 +56,23 @@ const PythonTutor = () => {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  // Automatically capture and sync context of currently active file
+  useEffect(() => {
+    if (!isContextDisabled) {
+      if (activeFile) {
+        const fileName = activeFile.name;
+        const content = value !== undefined ? value : activeFile.content || "";
+        if (content.trim()) {
+          setAttachedContext({ fileName, content });
+        } else {
+          setAttachedContext(null);
+        }
+      } else {
+        setAttachedContext(null);
+      }
+    }
+  }, [activeFile, value, isContextDisabled]);
 
   // Load workspace structure from backend => this function uses flat array only , to show contents of first file.
   const loadWorkspace = async () => {
@@ -106,6 +125,7 @@ const PythonTutor = () => {
     setActiveFile(targetNode);
     setValue(targetNode.content || "");
     setSaveStatus("");
+    setIsContextDisabled(false); // Auto re-enable context for newly active file
   };
 
   // Handle selecting target parent folder
@@ -222,6 +242,26 @@ const PythonTutor = () => {
     }
   };
 
+  // Attach or refresh active file code as context for AI chat
+  const handleAttachContext = () => {
+    setIsContextDisabled(false);
+    const fileName = activeFile ? activeFile.name : "Active Editor";
+    const content = value || "";
+    if (!content.trim()) {
+      setError("Active editor is empty. Write or open a file with code first!");
+      setTimeout(() => setError(""), 3000);
+      return;
+    }
+    setAttachedContext({ fileName, content });
+    setError("");
+  };
+
+  // Remove attached code context manually
+  const handleRemoveContext = () => {
+    setIsContextDisabled(true);
+    setAttachedContext(null);
+  };
+
   // handle sending user message to our backend and getting the AI response
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -233,7 +273,14 @@ const PythonTutor = () => {
     setIsLoading(true);
     setError("");
 
-    const userMessage = { role: "user", content: input };
+    // Capture context snapshot for this outgoing message
+    const currentContext = attachedContext ? { ...attachedContext } : null;
+
+    const userMessage = {
+      role: "user",
+      content: input,
+      ...(currentContext ? { context: currentContext } : {}),
+    };
     const history = [...messages, userMessage];
 
     setMessages(history);
@@ -246,7 +293,10 @@ const PythonTutor = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({
+          messages: history.map((m) => ({ role: m.role, content: m.content })),
+          codeContext: currentContext,
+        }),
       });
 
       if (response.status === 401) {
@@ -387,16 +437,16 @@ const PythonTutor = () => {
                 onClick={handleSaveFile}
                 disabled={saveStatus === "saving"}
                 title="Save File to Database"
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl transition-all border cursor-pointer ${
+                className={`hover:text-blue-400 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl transition-all border cursor-pointer ${
                   saveStatus === "unsaved"
                     ? "bg-emerald-600 hover:bg-emerald-500 border-emerald-500 text-white font-semibold"
                     : isDarkMode
-                    ? "bg-gray-800 hover:bg-gray-700 border-gray-700 text-gray-300"
+                    ? "bg-gray-800 hover:bg-blue-800/40 border-gray-700 text-gray-300"
                     : "bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-700"
                 }`}
               >
-                <FiSave className="text-sm" />
-                <span>Save</span>
+                <FiSave className="text-sm " />
+                {/* <span>Save</span> */}
               </button>
             )}
 
@@ -419,7 +469,7 @@ const PythonTutor = () => {
               ) : (
                 <LuCopyCheck className="text-sm" />
               )}
-              <span>{copyBtn || "Copy"}</span>
+              {/* <span>{copyBtn || "Copy"}</span> */}
             </button>
 
             {/* Clear Button */}
@@ -437,7 +487,7 @@ const PythonTutor = () => {
               }`}
             >
               <FiDelete className="text-sm" />
-              <span>Clear</span>
+              {/* <span>Clear</span> */}
             </button>
 
             {/* Run Button */}
@@ -451,7 +501,7 @@ const PythonTutor = () => {
               className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all disabled:opacity-50 cursor-pointer"
             >
               <IoPlayOutline className="text-sm font-bold" />
-              <span>{isExecuting ? "Running..." : "Run"}</span>
+              {/* <span>{isExecuting ? "Running..." : "Run"}</span> */}
             </button>
           </div>
         </div>
@@ -497,7 +547,7 @@ const PythonTutor = () => {
         </div>
 
         {/* Message Log */}
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 scrollbar-thin scrollbar-thumb-gray-600">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 text-gray-400 space-y-3">
               <div className="text-4xl p-3 rounded-2xl bg-blue-500/10">🐍</div>
@@ -542,6 +592,15 @@ const PythonTutor = () => {
                       } rounded-bl-none`
                 }`}
               >
+                {msg.context && (
+                  <div className="mb-2 pb-1.5 border-b border-gray-700/40 flex items-center gap-1.5 text-xs text-blue-400 font-mono">
+                    <FiCode className="text-xs shrink-0 text-blue-400" />
+                    <span className="truncate">Context: {msg.context.fileName}</span>
+                    <span className="text-[10px] text-gray-400 font-sans">
+                      ({msg.context.content?.length || 0} chars)
+                    </span>
+                  </div>
+                )}
                 <Streamdown
                   plugins={streamdownPlugins}
                   animated
@@ -570,29 +629,112 @@ const PythonTutor = () => {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Input Controls */}
+        {/* Input Controls Container (Cursor / VS Code Chat Style) */}
         <form
           onSubmit={handleSubmit}
-          className="pt-3 border-t border-gray-700/20 flex gap-2 shrink-0 mt-2"
+          className={`p-3 rounded-2xl border transition-all duration-200 shadow-sm shrink-0 mt-2 flex flex-col gap-2.5 ${
+            isDarkMode
+              ? "bg-gray-800/80 border-gray-700/80 focus-within:border-blue-500/80 focus-within:ring-1 focus-within:ring-blue-500/30"
+              : "bg-white border-gray-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-400/30"
+          }`}
         >
-          <input
+          {/* Top Section: Active Context Pill (Above prompt input) */}
+          {attachedContext && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <div
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-dashed text-xs font-mono transition-all ${
+                  isDarkMode
+                    ? "bg-gray-900/80 border-gray-600 text-gray-200"
+                    : "bg-gray-100 border-gray-300 text-gray-800"
+                }`}
+              >
+                <span className="text-gray-400 font-sans text-xs select-none font-bold">+</span>
+                <span className="shrink-0">{renderFileIcon(attachedContext.fileName)}</span>
+                <span className="truncate max-w-48 font-medium">
+                  {attachedContext.fileName}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRemoveContext}
+                  title="Remove context"
+                  className="ml-1 text-gray-400 hover:text-red-400 transition-colors p-0.5 rounded cursor-pointer"
+                >
+                  <FiX className="text-xs" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Middle Section: Textarea Input */}
+          <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask Codey about Python..."
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (input.trim() && !isLoading) handleSubmit(e);
+              }
+            }}
+            rows={2}
+            placeholder={
+              attachedContext
+                ? `Ask Codey about ${attachedContext.fileName}...`
+                : "Describe what to build or ask Codey..."
+            }
             disabled={isLoading}
-            className={`flex-1 px-4 py-2.5 rounded-xl text-sm ${
-              isDarkMode
-                ? "bg-gray-800 border-gray-700 text-gray-100 focus:ring-2 focus:ring-blue-500/50"
-                : "bg-gray-100 border-gray-200 text-gray-900 focus:ring-2 focus:ring-blue-400"
-            } outline-none border transition-all disabled:opacity-50`}
+            className={`w-full bg-transparent text-sm outline-none resize-none px-1 placeholder-gray-500 disabled:opacity-50 min-h-10.5 max-h-32 ${
+              isDarkMode ? "text-gray-100" : "text-gray-900"
+            }`}
           />
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center gap-1.5 cursor-pointer"
-          >
-            <span>Send</span>
-          </button>
+
+          {/* Bottom Toolbar Section */}
+          <div className="flex items-center justify-between pt-1 border-t border-gray-700/20">
+            {/* Left Action Buttons */}
+            <div className="flex items-center gap-2">
+              {/* Plus Button to Add / Re-attach Context */}
+              <button
+                type="button"
+                onClick={handleAttachContext}
+                title={
+                  attachedContext
+                    ? `Context attached: ${attachedContext.fileName} (click to refresh)`
+                    : `Add active file code context (${activeFile ? activeFile.name : "Editor"})`
+                }
+                className={`p-1.5 px-2 rounded-lg border text-xs font-medium flex items-center gap-1 transition-all cursor-pointer ${
+                  attachedContext
+                    ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
+                    : isDarkMode
+                    ? "bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-200 hover:bg-gray-700"
+                    : "bg-gray-100 border-gray-300 text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                <FiPlus className="text-sm" />
+                <span className="text-[11px] font-sans">Context</span>
+              </button>
+
+              {/* Agent / Model Badge */}
+              <div
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-sans ${
+                  isDarkMode
+                    ? "bg-gray-900/50 border-gray-700/60 text-gray-300"
+                    : "bg-gray-100 border-gray-200 text-gray-700"
+                }`}
+              >
+                <RiRobot2Line className="text-blue-400 text-xs" />
+                <span className="font-medium">Codey AI</span>
+              </div>
+            </div>
+
+            {/* Right Action: Send Button */}
+            <button
+              type="submit"
+              disabled={isLoading || !input.trim()}
+              className="p-2 bg-indigo-500 hover:bg-indigo-400 text-white font-medium rounded-full transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm flex items-center justify-center cursor-pointer"
+              title="Send message (Enter)"
+            >
+              <FaArrowUp />
+            </button>
+          </div>
         </form>
       </div>
     </div>
