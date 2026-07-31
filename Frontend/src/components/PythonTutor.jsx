@@ -1,15 +1,22 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import CodeEditor from "./CodeEditor";
+import FileTree from "./FileTree";
 import { useDarkMode } from "../context/DarkModeContext";
 import { useAuth } from "../context/AuthContext";
+import { ideApi } from "../API/ideAPI";
+import { buildFileTree } from "../utils/treeBuilder";
 import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 import { LuCopyCheck } from "react-icons/lu";
 import { FaRegCircleCheck } from "react-icons/fa6";
 import { IoPlayOutline } from "react-icons/io5";
-import { FiDelete, FiCode } from "react-icons/fi";
+import { FiDelete, FiCode, FiSave } from "react-icons/fi";
 import { RiRobot2Line } from "react-icons/ri";
+import pythonIcon from "../assets/icons/python.png";
+import markdownIcon from "../assets/icons/markdown.png";
+import { getHeaderFileIcon } from "../utils/RenderFileIcon";
+
 
 // Streamdown's plugin set is identity-compared, so it must be a stable module
 // constant rather than an inline object.
@@ -32,11 +39,188 @@ const PythonTutor = () => {
   const [isExecuting, setIsExecuting] = useState(false); // Tracks execution status
   const [copyBtn, setCopyBtn] = useState(""); // Controls copy button text
 
+  // File tree / Workspace states
+  const [rawNodes, setRawNodes] = useState([]);
+  const [activeFile, setActiveFile] = useState(null);
+  const [selectedParentId, setSelectedParentId] = useState(null);
+  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(""); // '', 'saving', 'saved', 'unsaved', 'error'
+
+  // Re-build tree dynamically whenever rawNodes state updates
+  const treeNodes = useMemo(() => buildFileTree(rawNodes), [rawNodes]);
+
   const chatEndRef = useRef(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  // Load workspace structure from backend => this function uses flat array only , to show contents of first file.
+  const loadWorkspace = async () => {
+    if (!token) return;
+    setIsWorkspaceLoading(true);
+    try {
+      const nodes = await ideApi.fetchWorkspace(token);
+      setRawNodes(nodes || []);
+
+      // Auto-select first file if none selected
+      if (!activeFile && nodes && nodes.length > 0) {
+        const firstFile = nodes.find((n) => n.type === "file");
+        if (firstFile) {
+          setActiveFile(firstFile);
+          setValue(firstFile.content || "");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load workspace:", err);
+    } finally {
+      setIsWorkspaceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadWorkspace();
+  }, [token]);
+
+  // Handle selecting a file from tree
+  const handleSelectFile = async (fileNode) => {
+    if (!fileNode || fileNode.type !== "file") return;
+    if (activeFile && activeFile._id === fileNode._id) return;
+
+    // Auto-save unsaved changes on current file before switching
+    if (activeFile && value !== activeFile.content) {
+      try {
+        const currentFileId = activeFile._id;
+        const currentVal = value;
+        await ideApi.saveFile(currentFileId, currentVal, token);
+        setRawNodes((prev) =>
+          prev.map((n) => (n._id === currentFileId ? { ...n, content: currentVal } : n))
+        );
+      } catch (err) {
+        console.error("Auto-save on file switch failed:", err);
+      }
+    }
+
+    // Lookup latest node state from rawNodes
+    const targetNode = rawNodes.find((n) => n._id === fileNode._id) || fileNode;
+    setActiveFile(targetNode);
+    setValue(targetNode.content || "");
+    setSaveStatus("");
+  };
+
+  // Handle selecting target parent folder
+  const handleSelectParent = (folderId) => {
+    setSelectedParentId((prev) => (prev === folderId ? null : folderId));
+  };
+
+  // Handle creating a new file/folder
+  const handleCreateNode = async ({ name, type, parentId }) => {
+    if (!token) return;
+
+    try {
+      // Calculate normalized path
+      let path = `/${name}`;
+      if (parentId) {
+        const parentNode = rawNodes.find((n) => n._id === parentId);
+        if (parentNode) {
+          path = `${parentNode.path}/${name}`.replace(/\/+/g, "/");
+        }
+      }
+
+      const newNode = await ideApi.createNode(
+        { name, path, type, parentId },
+        token
+      );
+
+      setRawNodes((prev) => [...prev, newNode]);
+
+      // If created node is a file, select it
+      if (type === "file") {
+        setActiveFile(newNode);
+        setValue(newNode.content || "");
+        setSaveStatus("");
+      }
+    } catch (err) {
+      alert(err.message || "Failed to create item");
+    }
+  };
+
+  // Handle deleting a file/folder
+  const handleDeleteNode = async (nodeId) => {
+    if (!token) return;
+
+    try {
+      await ideApi.deleteNode(nodeId, token);
+
+      setRawNodes((prev) =>
+        prev.filter((n) => n._id !== nodeId && n.parentId !== nodeId)
+      );
+
+      // If active file was deleted
+      if (activeFile?._id === nodeId) {
+        const remainingFile = rawNodes.find((n) => n.type === "file" && n._id !== nodeId);
+        if (remainingFile) {
+          setActiveFile(remainingFile);
+          setValue(remainingFile.content || "");
+        } else {
+          setActiveFile(null);
+          setValue("");
+        }
+        setSaveStatus("");
+      }
+    } catch (err) {
+      alert(err.message || "Failed to delete item");
+    }
+  };
+
+  // Handle renaming a file/folder
+  const handleRenameNode = async (nodeId, newName) => {
+    if (!token || !newName.trim()) return;
+
+    const targetNode = rawNodes.find((n) => n._id === nodeId);
+    if (!targetNode || targetNode.name === newName) return;
+
+    try {
+      let newPath = `/${newName}`;
+      if (targetNode.parentId) {
+        const parentNode = rawNodes.find((n) => n._id === targetNode.parentId);
+        if (parentNode) {
+          newPath = `${parentNode.path}/${newName}`.replace(/\/+/g, "/");
+        }
+      }
+
+      await ideApi.moveNode(nodeId, { name: newName, newPath }, token);
+
+      // Refresh workspace after renaming
+      await loadWorkspace();
+    } catch (err) {
+      alert(err.message || "Failed to rename item");
+    }
+  };
+
+  // Save active file content to backend
+  const handleSaveFile = async () => {
+    if (!activeFile || !token) return;
+
+    setSaveStatus("saving");
+    try {
+      await ideApi.saveFile(activeFile._id, value, token);
+      setSaveStatus("saved");
+
+      // Update activeFile object in state
+      setActiveFile((prev) => (prev ? { ...prev, content: value } : null));
+
+      // Update in local rawNodes
+      setRawNodes((prev) =>
+        prev.map((n) => (n._id === activeFile._id ? { ...n, content: value } : n))
+      );
+
+      setTimeout(() => setSaveStatus(""), 2000);
+    } catch (err) {
+      setSaveStatus("error");
+      console.error("Failed to save file:", err);
+    }
+  };
 
   // handle sending user message to our backend and getting the AI response
   const handleSubmit = async (e) => {
@@ -133,6 +317,31 @@ const PythonTutor = () => {
 
   return (
     <div className="h-full w-full flex flex-col lg:flex-row gap-4 p-4 overflow-hidden min-h-0">
+
+      {/* Leftmost panel: File structure */}
+      <div
+        className={`w-full lg:w-60 shrink-0 flex flex-col min-w-0 h-full overflow-hidden rounded-2xl border p-4 shadow-sm transition-colors duration-300 ${
+          isDarkMode
+            ? "bg-gray-900/70 border-gray-800"
+            : "bg-white border-gray-200"
+        }`}
+      >
+        <FileTree
+          isDarkMode={isDarkMode}
+          tree={treeNodes}
+          rawNodes={rawNodes}
+          activeFileId={activeFile?._id}
+          selectedParentId={selectedParentId}
+          onSelectFile={handleSelectFile}
+          onSelectParent={handleSelectParent}
+          onCreateNode={handleCreateNode}
+          onDeleteNode={handleDeleteNode}
+          onRenameNode={handleRenameNode}
+          onRefresh={loadWorkspace}
+          isLoading={isWorkspaceLoading}
+        />
+      </div>
+
       {/* Left Panel: Code Editor & Terminal Output */}
       <div
         className={`flex-1 flex flex-col min-w-0 h-full overflow-hidden rounded-2xl border p-4 shadow-sm transition-colors duration-300 ${
@@ -143,18 +352,54 @@ const PythonTutor = () => {
       >
         {/* Editor Toolbar Header */}
         <div className="flex items-center justify-between pb-3 border-b border-gray-700/20 shrink-0 mb-3">
-          {/* python workspace */}
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
-              <FiCode size={18} />
+          {/* python workspace / active file */}
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
+              {activeFile ? getHeaderFileIcon(activeFile.name) : <FiCode size={18} />}
             </span>
-            <h2 className="font-semibold text-sm tracking-wide">
-              Python Workspace
-            </h2>
+            <div className="flex items-center gap-2 min-w-0">
+              <h2 className="font-semibold text-sm tracking-wide truncate">
+                {activeFile ? activeFile.name : "Python Workspace"}
+              </h2>
+              {saveStatus === "unsaved" && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">
+                  Unsaved
+                </span>
+              )}
+              {saveStatus === "saving" && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium animate-pulse">
+                  Saving...
+                </span>
+              )}
+              {saveStatus === "saved" && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">
+                  Saved
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Save Button */}
+            {activeFile && (
+              <button
+                onClick={handleSaveFile}
+                disabled={saveStatus === "saving"}
+                title="Save File to Database"
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl transition-all border cursor-pointer ${
+                  saveStatus === "unsaved"
+                    ? "bg-emerald-600 hover:bg-emerald-500 border-emerald-500 text-white font-semibold"
+                    : isDarkMode
+                    ? "bg-gray-800 hover:bg-gray-700 border-gray-700 text-gray-300"
+                    : "bg-gray-100 hover:bg-gray-200 border-gray-200 text-gray-700"
+                }`}
+              >
+                <FiSave className="text-sm" />
+                <span>Save</span>
+              </button>
+            )}
+
             {/* Copy Button */}
             <button
               onClick={async () => {
@@ -182,6 +427,7 @@ const PythonTutor = () => {
               onClick={() => {
                 setTextAreaValue("");
                 setValue("");
+                setSaveStatus("unsaved");
               }}
               title="Clear Editor"
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl transition-all border cursor-pointer ${
@@ -196,7 +442,10 @@ const PythonTutor = () => {
 
             {/* Run Button */}
             <button
-              onClick={handleRunCode}
+              onClick={() => {
+                if (activeFile) handleSaveFile();
+                handleRunCode();
+              }}
               disabled={isExecuting}
               title="Run Python Code"
               className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all disabled:opacity-50 cursor-pointer"
@@ -211,7 +460,10 @@ const PythonTutor = () => {
         <CodeEditor
           isDarkMode={isDarkMode}
           value={value}
-          onChange={(newValue) => setValue(newValue)}
+          onChange={(newValue) => {
+            setValue(newValue);
+            setSaveStatus("unsaved");
+          }}
           jsonResult={jsonResult}
           isExecuting={isExecuting}
         />
