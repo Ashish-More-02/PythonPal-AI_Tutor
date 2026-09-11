@@ -12,11 +12,17 @@ import { getHeaderFileIcon ,renderFileIcon} from "../utils/RenderFileIcon";
 import { LuCopyCheck } from "react-icons/lu";
 import { FaRegCircleCheck } from "react-icons/fa6";
 import { IoPlayOutline } from "react-icons/io5";
-import { FiDelete, FiCode, FiSave, FiPlus, FiX } from "react-icons/fi";
+import { FiDelete, FiCode, FiSave, FiPlus, FiX, FiClock, FiTrash2, FiMessageSquare } from "react-icons/fi";
 import { RiRobot2Line } from "react-icons/ri";
 import { FaArrowUp } from "react-icons/fa6";
 import markdownIcon from "../assets/icons/markdown.png";
 import pythonIcon from "../assets/icons/python.png";
+import {
+  saveChathistory,
+  getChatHistories,
+  getChatHistoryById,
+  deleteChatHistoryById,
+} from "../API/AI_APIs";
 
 // Streamdown's plugin set is identity-compared, so it must be a stable module
 // constant rather than an inline object.
@@ -52,6 +58,117 @@ const PythonTutor = () => {
   const treeNodes = useMemo(() => buildFileTree(rawNodes), [rawNodes]);
 
   const chatEndRef = useRef(null);
+
+  // Chat History Management States & Refs
+  const [currentChatId, setCurrentChatId] = useState(null);
+  const currentChatIdRef = useRef(null);
+  const [savedChats, setSavedChats] = useState([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isSavingChat, setIsSavingChat] = useState(false);
+  const [isFetchingChats, setIsFetchingChats] = useState(false);
+
+  const historyRef = useRef(null);
+
+  const updateCurrentChatId = (id) => {
+    currentChatIdRef.current = id;
+    setCurrentChatId(id);
+  };
+
+  // Close history popover when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (historyRef.current && !historyRef.current.contains(event.target)) {
+        setIsHistoryOpen(false);
+      }
+    };
+    if (isHistoryOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isHistoryOpen]);
+
+  // Fetch saved chat histories for current user
+  const fetchSavedChats = async () => {
+    if (!token) return;
+    setIsFetchingChats(true);
+    try {
+      const data = await getChatHistories(token);
+      if (data.success) {
+        setSavedChats(data.chats || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch saved chats:", err);
+    } finally {
+      setIsFetchingChats(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchSavedChats();
+    }
+  }, [token]);
+
+  const formatChatDate = (dateStr) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    const now = new Date();
+    const diffInMs = now - d;
+    const diffInMins = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInMins < 1) return "Just now";
+    if (diffInMins < 60) return `${diffInMins}m ago`;
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  };
+
+  const handleNewChat = () => {
+    setMessages([]);
+    updateCurrentChatId(null);
+    setError("");
+    setIsHistoryOpen(false);
+  };
+
+  const handleSelectChat = async (chat) => {
+    if (!chat || chat._id === currentChatIdRef.current) {
+      setIsHistoryOpen(false);
+      return;
+    }
+    try {
+      const data = await getChatHistoryById(chat._id, token);
+      if (data.success && data.chat) {
+        const loadedMessages = data.chat.messages || [];
+        setMessages(loadedMessages);
+        updateCurrentChatId(data.chat._id);
+      }
+    } catch (err) {
+      console.error("Failed to load chat history:", err);
+      setError("Failed to load selected chat history.");
+    } finally {
+      setIsHistoryOpen(false);
+    }
+  };
+
+  const handleDeleteChat = async (e, chatId) => {
+    e.stopPropagation();
+    if (!token || !chatId) return;
+    try {
+      await deleteChatHistoryById(chatId, token);
+      setSavedChats((prev) => prev.filter((c) => c._id !== chatId));
+      if (currentChatIdRef.current === chatId) {
+        setMessages([]);
+        updateCurrentChatId(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete chat:", err);
+    }
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -326,6 +443,33 @@ const PythonTutor = () => {
           { role: "assistant", content: assistantContent },
         ]);
       }
+
+      // Auto-save completed chat history turn
+      const updatedMessages = [
+        ...history,
+        { role: "assistant", content: assistantContent },
+      ];
+
+      if (updatedMessages.length > 0 && token) {
+        setIsSavingChat(true);
+        try {
+          const saveRes = await saveChathistory(
+            {
+              chatId: currentChatIdRef.current,
+              messages: updatedMessages,
+            },
+            token
+          );
+          if (saveRes?.success && saveRes?.chat) {
+            updateCurrentChatId(saveRes.chat._id);
+            fetchSavedChats();
+          }
+        } catch (saveErr) {
+          console.error("Auto-save chat history failed:", saveErr);
+        } finally {
+          setIsSavingChat(false);
+        }
+      }
     } catch (err) {
       setError(`Error: ${err.message}`);
     } finally {
@@ -528,22 +672,153 @@ const PythonTutor = () => {
         }`}
       >
         {/* Chat Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-gray-700/20 shrink-0 mb-3">
+        <div className="relative flex items-center justify-between pb-3 border-b border-gray-700/20 shrink-0 mb-3">
           <div className="flex items-center gap-2">
             <span className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 text-base">
               <RiRobot2Line />
             </span>
             <div>
-              <h2 className="font-semibold text-sm">Codey AI Assistant</h2>
+              <h2 className="font-semibold text-sm flex items-center gap-2">
+                Codey AI Assistant
+                {isSavingChat && (
+                  <span className="text-[10px] font-normal text-amber-400 animate-pulse">
+                    Saving...
+                  </span>
+                )}
+              </h2>
               <p className="text-[11px] text-gray-400">
                 Personal Python tutor & debug helper
               </p>
             </div>
           </div>
-          <span className="flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            Ready
-          </span>
+
+          <div className="flex items-center gap-2">
+            {/* New Chat Button */}
+            <button
+              onClick={handleNewChat}
+              title="Start New Chat"
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-all cursor-pointer ${
+                isDarkMode
+                  ? "bg-gray-800 hover:bg-gray-700 border-gray-700 text-gray-200"
+                  : "bg-gray-100 hover:bg-gray-200 border-gray-300 text-gray-800"
+              }`}
+            >
+              <FiPlus className="text-sm text-blue-400" />
+              <span className="hidden sm:inline font-medium">New</span>
+            </button>
+
+            {/* Saved Chats History Trigger */}
+            <button
+              onClick={() => {
+                setIsHistoryOpen((prev) => !prev);
+                if (!isHistoryOpen) fetchSavedChats();
+              }}
+              title="Saved Chats History"
+              className={`relative flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border transition-all cursor-pointer ${
+                isHistoryOpen
+                  ? "bg-blue-500/20 border-blue-500/40 text-blue-400"
+                  : isDarkMode
+                  ? "bg-gray-800 hover:bg-gray-700 border-gray-700 text-gray-300"
+                  : "bg-gray-100 hover:bg-gray-200 border-gray-300 text-gray-700"
+              }`}
+            >
+              <FiClock className="text-sm" />
+              <span className="hidden sm:inline font-medium">History</span>
+              {savedChats.length > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 text-[10px] font-semibold rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                  {savedChats.length}/10
+                </span>
+              )}
+            </button>
+
+            <span className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Ready
+            </span>
+          </div>
+
+          {/* History Popover Panel */}
+          {isHistoryOpen && (
+            <div
+              ref={historyRef}
+              className={`absolute right-0 top-12 z-50 w-80 max-h-96 flex flex-col rounded-xl border shadow-xl backdrop-blur-md overflow-hidden ${
+                isDarkMode
+                  ? "bg-gray-900/95 border-gray-700 text-gray-200"
+                  : "bg-white/95 border-gray-200 text-gray-800"
+              }`}
+            >
+              {/* Popover Header */}
+              <div className="flex items-center justify-between p-3 border-b border-gray-700/20">
+                <div className="flex items-center gap-2">
+                  <FiMessageSquare className="text-blue-400" />
+                  <h3 className="font-semibold text-xs">Saved Chats</h3>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-medium">
+                    {savedChats.length}/10 max
+                  </span>
+                </div>
+                <button
+                  onClick={() => setIsHistoryOpen(false)}
+                  className="p-1 rounded-lg hover:bg-gray-700/30 text-gray-400 hover:text-gray-200 cursor-pointer"
+                >
+                  <FiX className="text-sm" />
+                </button>
+              </div>
+
+              {/* Popover Content / Chat List */}
+              <div className="flex-1 overflow-y-auto p-2 space-y-1.5 scrollbar-thin">
+                {isFetchingChats ? (
+                  <div className="p-4 text-center text-xs text-gray-400 animate-pulse">
+                    Loading saved chats...
+                  </div>
+                ) : savedChats.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-gray-400 space-y-1">
+                    <p className="font-medium text-gray-300">No saved chats</p>
+                    <p className="text-[11px] text-gray-500">
+                      Your conversations with Codey will auto-save here up to 10 chats.
+                    </p>
+                  </div>
+                ) : (
+                  savedChats.map((chat) => {
+                    const isActive = chat._id === currentChatId;
+                    return (
+                      <div
+                        key={chat._id}
+                        onClick={() => handleSelectChat(chat)}
+                        className={`group flex items-center justify-between p-2.5 rounded-lg text-xs transition-all cursor-pointer border ${
+                          isActive
+                            ? "bg-blue-500/15 border-blue-500/40 text-blue-300 font-medium"
+                            : isDarkMode
+                            ? "bg-gray-800/40 border-gray-800 hover:bg-gray-800 hover:border-gray-700 text-gray-300"
+                            : "bg-gray-50 border-gray-100 hover:bg-gray-100 hover:border-gray-200 text-gray-700"
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0 pr-2">
+                          <p className="truncate font-medium">
+                            {chat.title || "Untitled Chat"}
+                          </p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            {formatChatDate(chat.updatedAt || chat.createdAt)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={(e) => handleDeleteChat(e, chat._id)}
+                          title="Delete Chat"
+                          className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-all cursor-pointer"
+                        >
+                          <FiTrash2 className="text-xs" />
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Popover Footer */}
+              <div className="p-2.5 bg-gray-800/20 border-t border-gray-700/20 text-[10px] text-gray-400 text-center">
+                Auto-saved (max 10). Oldest chats automatically cycle out.
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Message Log */}
