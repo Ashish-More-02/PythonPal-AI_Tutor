@@ -7,6 +7,7 @@ const authRoutes = require("./routes/AuthRoutes");
 const aiRoutes = require("./routes/AIRoutes");
 const {connectDB} = require("./config/dbConfig");
 const ideRoutes = require("./routes/IdeRoutes");
+const runRoutes = require("./routes/RunRoutes");
 
 const app = express();
 
@@ -40,6 +41,9 @@ app.use("/ai", aiRoutes);
 
 // IDE routes.
 app.use('/api/ide', ideRoutes);
+
+// Code execution routes.
+app.use('/api/run', runRoutes);
 
 // connect to the database 
 connectDB();

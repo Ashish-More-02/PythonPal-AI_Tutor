@@ -2,7 +2,7 @@ import React, { useRef } from "react";
 import Editor from "@monaco-editor/react";
 import Output from "./Output";
 
-const CodeEditor = ({ isDarkMode, value, onChange, jsonResult, isExecuting }) => {
+const CodeEditor = ({ isDarkMode, value, onChange, jsonResult, isExecuting, stdin, onStdinChange }) => {
   return (
     <div className="flex-1 min-h-0 flex flex-col w-full overflow-hidden">
       {/* Editor Frame */}
@@ -30,7 +30,13 @@ const CodeEditor = ({ isDarkMode, value, onChange, jsonResult, isExecuting }) =>
       </div>
 
       {/* Terminal Output Section */}
-      <Output jsonResult={jsonResult} isExecuting={isExecuting} isDarkMode={isDarkMode} />
+      <Output
+        jsonResult={jsonResult}
+        isExecuting={isExecuting}
+        isDarkMode={isDarkMode}
+        stdin={stdin}
+        onStdinChange={onStdinChange}
+      />
     </div>
   );
 };

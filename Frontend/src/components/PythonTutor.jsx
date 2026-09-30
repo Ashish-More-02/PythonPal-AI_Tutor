@@ -23,6 +23,7 @@ import {
   getChatHistoryById,
   deleteChatHistoryById,
 } from "../API/AI_APIs";
+import { runPython } from "../API/runAPI";
 
 // Streamdown's plugin set is identity-compared, so it must be a stable module
 // constant rather than an inline object.
@@ -42,6 +43,7 @@ const PythonTutor = () => {
   const [textAreaValue, setTextAreaValue] = useState(""); // For input text area
   const [value, setValue] = useState(""); // Stores the value of the code editor
   const [jsonResult, setJsonResult] = useState(""); // Stores execution results
+  const [stdinValue, setStdinValue] = useState(""); // Terminal "Input" tab — fed to input() at run time
   const [isExecuting, setIsExecuting] = useState(false); // Tracks execution status
   const [copyBtn, setCopyBtn] = useState(""); // Controls copy button text
   const [attachedContext, setAttachedContext] = useState(null); // Active file code context snapshot
@@ -486,24 +488,13 @@ const PythonTutor = () => {
     setIsExecuting(true);
 
     try {
-      const response = await fetch("https://emkc.org/api/v2/piston/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          language: "python",
-          version: "3.10.0",
-          files: [{ content: sourceCode }],
-        }),
-      });
-
-      if (!response.ok) throw new Error("Execution failed");
-      const result = await response.json();
+      const result = await runPython(sourceCode, stdinValue, token);
       setJsonResult(result);
     } catch (error) {
-      setJsonResult({
-        message: error.message,
-        run: { stderr: "Failed to execute code" },
-      });
+      // No `run` key, so Output falls to its message branch. The old catch sent
+      // a fixed string AND a run object, which is what hid Piston's 401 behind
+      // "Failed to execute code" when that API shut down.
+      setJsonResult({ message: error.message });
     } finally {
       setIsExecuting(false);
     }
@@ -660,6 +651,8 @@ const PythonTutor = () => {
           }}
           jsonResult={jsonResult}
           isExecuting={isExecuting}
+          stdin={stdinValue}
+          onStdinChange={setStdinValue}
         />
       </div>
 
