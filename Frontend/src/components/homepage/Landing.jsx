@@ -21,6 +21,7 @@ import { RiRobot2Line } from "react-icons/ri";
 import { FaPython } from "react-icons/fa";
 import { useDarkMode } from "../../context/DarkModeContext";
 import { useAuth } from "../../context/AuthContext";
+import ServerStatusPill from "../ServerStatusPill";
 
 // Mirrors Backend/utils/lessons.js + projects.js. The curriculum endpoint is
 // behind auth, so the public page keeps its own copy — update both together.
@@ -334,12 +335,12 @@ const Landing = () => {
             : "border-transparent bg-transparent"
         }`}
       >
-        <div className="max-w-6xl mx-auto flex items-center justify-between px-4 sm:px-6 py-3">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-2 px-3 min-[380px]:px-4 sm:px-6 py-3">
           <Link
             to="/"
             // Keep showLanding, or a logged-in visitor gets bounced to the dashboard.
             state={{ showLanding: true }}
-            className="text-2xl font-bold bg-gradient-to-r from-green-400 via-blue-500 to-green-400 bg-[length:200%_auto] bg-clip-text text-transparent transition-[background-position] duration-700 hover:bg-right"
+            className="shrink-0 text-lg min-[380px]:text-xl sm:text-2xl font-bold bg-gradient-to-r from-green-400 via-blue-500 to-green-400 bg-[length:200%_auto] bg-clip-text text-transparent transition-[background-position] duration-700 hover:bg-right"
           >
             PythonPal 🐍
           </Link>
@@ -350,7 +351,8 @@ const Landing = () => {
               </a>
             ))}
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <ServerStatusPill compact />
             <button
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2 rounded-full hover:bg-gray-500/20 transition-all duration-200 hover:rotate-12 active:scale-90 cursor-pointer"
@@ -362,7 +364,7 @@ const Landing = () => {
               </span>
             </button>
             {isAuthenticated ? (
-              <Link to="/dashboard" className="text-sm font-semibold rounded-lg px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white transition-all hover:-translate-y-0.5 active:scale-95">
+              <Link to="/dashboard" className="whitespace-nowrap text-sm font-semibold rounded-lg px-3 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white transition-all hover:-translate-y-0.5 active:scale-95">
                 Dashboard
               </Link>
             ) : (
@@ -370,8 +372,10 @@ const Landing = () => {
                 <Link to="/signin" className="hidden sm:inline text-sm font-semibold rounded-lg px-4 py-2 transition-colors hover:bg-gray-500/20">
                   Login
                 </Link>
-                <Link to="/signup" className="text-sm font-semibold rounded-lg px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white transition-all hover:-translate-y-0.5 hover:shadow-md hover:shadow-emerald-500/30 active:scale-95">
-                  Get started
+                <Link to="/signup" className="whitespace-nowrap text-sm font-semibold rounded-lg px-3 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white transition-all hover:-translate-y-0.5 hover:shadow-md hover:shadow-emerald-500/30 active:scale-95">
+                  {/* "Get started" doesn't fit beside the status pill on 320px phones */}
+                  <span className="min-[380px]:hidden">Start</span>
+                  <span className="hidden min-[380px]:inline">Get started</span>
                 </Link>
               </>
             )}

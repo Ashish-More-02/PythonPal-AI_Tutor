@@ -24,6 +24,8 @@ import {
   deleteChatHistoryById,
 } from "../API/AI_APIs";
 import { runPython } from "../API/runAPI";
+import { learnApi } from "../API/learnAPI";
+import StepPanel from "./StepPanel";
 
 // Streamdown's plugin set is identity-compared, so it must be a stable module
 // constant rather than an inline object.
@@ -32,7 +34,9 @@ const streamdownPlugins = { code };
 // Our own backend now holds the Groq key and the system prompt.
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
-const PythonTutor = () => {
+// With learnData (an opened lesson or project, from Learn.jsx) this shows the
+// step panel + that item's one file; without it, Free Practice (file tree + any file).
+const PythonTutor = ({ learnData }) => {
   const { isDarkMode } = useDarkMode();
   const { token, logout } = useAuth();
   const navigate = useNavigate();
@@ -55,6 +59,13 @@ const PythonTutor = () => {
   const [selectedParentId, setSelectedParentId] = useState(null);
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState(""); // '', 'saving', 'saved', 'unsaved', 'error'
+
+  // Lesson / project states (unused in Free Practice)
+  const [learnItem, setLearnItem] = useState(null);
+  const [completedSteps, setCompletedSteps] = useState([]);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [review, setReview] = useState(null); // { passed, feedback, hint } | { error }
+  const [isChecking, setIsChecking] = useState(false);
 
   // Re-build tree dynamically whenever rawNodes state updates
   const treeNodes = useMemo(() => buildFileTree(rawNodes), [rawNodes]);
@@ -195,7 +206,8 @@ const PythonTutor = () => {
 
   // Load workspace structure from backend => this function uses flat array only , to show contents of first file.
   const loadWorkspace = async () => {
-    if (!token) return;
+    // A lesson or project opens its own file instead of the whole tree.
+    if (!token || learnData) return;
     setIsWorkspaceLoading(true);
     try {
       const nodes = await ideApi.fetchWorkspace(token);
@@ -219,6 +231,19 @@ const PythonTutor = () => {
   useEffect(() => {
     loadWorkspace();
   }, [token]);
+
+  // Lesson / project: the backend created its file on open, so we just make it
+  // the active file and land on the first unfinished step.
+  useEffect(() => {
+    if (!learnData) return;
+    const { item, completedSteps, file } = learnData;
+    setLearnItem(item);
+    setCompletedSteps(completedSteps);
+    const firstOpen = item.steps.findIndex((s) => !completedSteps.includes(s.id));
+    setStepIndex(firstOpen === -1 ? item.steps.length - 1 : firstOpen);
+    setActiveFile(file);
+    setValue(file.content || "");
+  }, [learnData]);
 
   // Handle selecting a file from tree
   const handleSelectFile = async (fileNode) => {
@@ -490,27 +515,73 @@ const PythonTutor = () => {
     try {
       const result = await runPython(sourceCode, stdinValue, token);
       setJsonResult(result);
+      return result;
     } catch (error) {
       // No `run` key, so Output falls to its message branch. The old catch sent
       // a fixed string AND a run object, which is what hid Piston's 401 behind
       // "Failed to execute code" when that API shut down.
       setJsonResult({ message: error.message });
+      return null;
     } finally {
       setIsExecuting(false);
     }
   }
+
+  // "Check my code": save + run + review in one click, so Codey never reviews
+  // stale output and the learner sees the same output Codey saw.
+  const handleCheckStep = async () => {
+    if (!learnItem || !activeFile) return;
+    const step = learnItem.steps[stepIndex];
+
+    setIsChecking(true);
+    setReview(null);
+    try {
+      await handleSaveFile();
+      const result = await handleRunCode();
+      if (!result) {
+        setReview({ error: "Your code couldn't run just now, so Codey can't check it yet. Try again in a moment." });
+        return;
+      }
+
+      const output = [result.run.output, result.run.stderr].filter(Boolean).join("\n");
+      const res = await learnApi.checkStep(learnItem.id, step.id, { code: value, output }, token);
+      setReview(res);
+      setCompletedSteps(res.completedSteps);
+    } catch (err) {
+      setReview({ error: err.message });
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const handleSelectStep = (index) => {
+    setStepIndex(index);
+    setReview(null);
+  };
 
   return (
     <div className="h-full w-full flex flex-col lg:flex-row gap-4 p-4 overflow-hidden min-h-0">
 
       {/* Leftmost panel: File structure */}
       <div
-        className={`w-full lg:w-60 shrink-0 flex flex-col min-w-0 h-full overflow-hidden rounded-2xl border p-4 shadow-sm transition-colors duration-300 ${
+        className={`w-full ${learnData ? "lg:max-[1441px]:w-96 min-[1441px]:w-md 2xl:w-xl" : "lg:w-60"} shrink-0 flex flex-col min-w-0 h-full overflow-hidden rounded-2xl border p-4 shadow-sm transition-colors duration-300 ${
           isDarkMode
             ? "bg-gray-900/70 border-gray-800"
             : "bg-white border-gray-200"
         }`}
       >
+        {learnData ? (
+          <StepPanel
+            isDarkMode={isDarkMode}
+            item={learnItem}
+            completedSteps={completedSteps}
+            stepIndex={stepIndex}
+            onSelectStep={handleSelectStep}
+            onCheck={handleCheckStep}
+            isChecking={isChecking}
+            review={review}
+          />
+        ) : (
         <FileTree
           isDarkMode={isDarkMode}
           tree={treeNodes}
@@ -525,6 +596,7 @@ const PythonTutor = () => {
           onRefresh={loadWorkspace}
           isLoading={isWorkspaceLoading}
         />
+        )}
       </div>
 
       {/* Left Panel: Code Editor & Terminal Output */}

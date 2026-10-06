@@ -8,6 +8,9 @@ import ProtectedRoute from "./utils/ProtectedRoute";
 import { DarkModeContext } from "./context/DarkModeContext";
 import { AuthProvider } from "./context/AuthContext";
 import AI_agent from "./pages/AI_agent";
+import Dashboard from "./pages/Dashboard";
+import Learn from "./pages/Learn";
+import { ServerStatusProvider } from "./context/ServerStatusContext";
 
 // Created once, outside the component. RouterProvider freezes on the first
 // router it receives, so recreating it on every render (and baking props into
@@ -27,7 +30,25 @@ const myroutes = createBrowserRouter([
     element: <SignIn></SignIn>,
   },
   {
-    // The actual product — only reachable once logged in.
+    // Home after login: lessons, projects and Free Practice.
+    path: "/dashboard",
+    element: (
+      <ProtectedRoute>
+        <Dashboard></Dashboard>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    // One lesson or project.
+    path: "/learn/:itemId",
+    element: (
+      <ProtectedRoute>
+        <Learn></Learn>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    // Free Practice.
     path: "/app",
     element: (
       <ProtectedRoute>
@@ -47,11 +68,14 @@ const App = () => {
   }, [isDarkMode]);
 
   return (
-    <AuthProvider>
-      <DarkModeContext.Provider value={{ isDarkMode, setIsDarkMode }}>
-        <RouterProvider router={myroutes}></RouterProvider>
-      </DarkModeContext.Provider>
-    </AuthProvider>
+    // Outside the router so the health check starts on first load and survives navigation.
+    <ServerStatusProvider>
+      <AuthProvider>
+        <DarkModeContext.Provider value={{ isDarkMode, setIsDarkMode }}>
+          <RouterProvider router={myroutes}></RouterProvider>
+        </DarkModeContext.Provider>
+      </AuthProvider>
+    </ServerStatusProvider>
   );
 };
 

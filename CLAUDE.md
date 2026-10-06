@@ -33,7 +33,7 @@ persisted file tree and Python execution. Live: https://python-pal-ai-tutor.verc
 - **Backend**: Node + Express 4, **CommonJS** (`require`, not ESM), Mongoose 8 / MongoDB Atlas, Groq SDK, JWT + bcryptjs.
 - **Frontend**: React 18 + Vite, Tailwind v4 (via `@tailwindcss/vite`, no config file), react-router-dom v7, Monaco + CodeMirror, `streamdown` for rendering AI markdown.
 - **Code execution**: Piston API (client-side).
-- No test setup in either app. `npm start` (nodemon) in Backend, `npm run dev` in Frontend.
+- No test setup in either app. `npm run dev` (nodemon) in Backend (`npm start` = plain node, used by Render), `npm run dev` in Frontend.
 
 ## Layout
 
@@ -49,7 +49,7 @@ Docs/        feature write-ups (CodeContext_working.md, FileSystem_working.md, .
 - **Auth**: JWT in `Authorization: Bearer <token>`. `checkJWTtoken` sets `req.user`; read the id as `req.user.userId`. Every route except `/signup` and `/signin` is behind it.
 - **Frontend never calls `fetch` from components** — all HTTP lives in `src/API/*.js`, which attach the token via `getAuthHeaders()` (token key in localStorage: `pythonpal-token`) and throw `new Error(data.error)` on non-2xx.
 - **API base URL**: `import.meta.env.VITE_API_URL`, fallback `http://localhost:3000`.
-- **CORS** is pinned to `http://localhost:5173` — a new frontend origin needs an edit in `Backend/index.js`.
+- **CORS** allows `http://localhost:5173` + the Vercel URL; add more origins via `CLIENT_ORIGINS` (comma-separated) or `Backend/index.js`.
 - **`/ai/chat` streams plain text** (`res.write` chunks + `res.end()`), not JSON. The client reads it as a stream.
 - Controllers treat the request body as untrusted: validate/whitelist `messages` before it reaches Groq.
 - Per-user limits live as constants in the controller (e.g. `MAX_SAVED_CHATS = 10`, oldest chats pruned on insert).

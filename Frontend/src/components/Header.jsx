@@ -1,11 +1,13 @@
 import React from "react";
-import { FiSun, FiMoon, FiLogOut } from "react-icons/fi";
-import { useNavigate } from "react-router-dom";
+import { FiSun, FiMoon, FiLogOut, FiCode } from "react-icons/fi";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import ServerStatusPill from "./ServerStatusPill";
 
 const Header = ({ setIsDarkMode, isDarkMode }) => {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const handleLogout = () => {
     logout();
@@ -20,7 +22,13 @@ const Header = ({ setIsDarkMode, isDarkMode }) => {
           : "bg-white/90 border-gray-200 backdrop-blur-md"
       }`}
     >
-      <div className="flex items-center gap-3 cursor-pointer" onClick={()=>navigate("/")}>
+      <div
+        className="flex items-center gap-3 cursor-pointer"
+        // From the dashboard the logo shows the landing page; everywhere else it goes back to the dashboard.
+        onClick={() =>
+          pathname === "/dashboard" ? navigate("/", { state: { showLanding: true } }) : navigate("/dashboard")
+        }
+      >
         <h1 className="text-2xl font-extrabold bg-gradient-to-r from-emerald-400 via-teal-400 to-blue-500 bg-clip-text text-transparent tracking-tight">
           PythonPal <span className="text-xl">🐍</span>
         </h1>
@@ -36,6 +44,17 @@ const Header = ({ setIsDarkMode, isDarkMode }) => {
       </div>
 
       <div className="flex items-center gap-3">
+        <ServerStatusPill className="hidden md:inline-flex" />
+        {/* Free Practice is one click away from anywhere, except when you're already in it */}
+        {pathname !== "/app" && (
+          <button
+            onClick={() => navigate("/app")}
+            className="flex items-center gap-2 text-sm font-semibold rounded-xl px-4 py-2 transition-all bg-indigo-500 hover:bg-indigo-400 text-white cursor-pointer"
+          >
+            <FiCode size={16} />
+            <span className="hidden sm:inline">Free Practice</span>
+          </button>
+        )}
         <button
           onClick={() => setIsDarkMode(!isDarkMode)}
           title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
