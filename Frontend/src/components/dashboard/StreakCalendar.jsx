@@ -4,10 +4,8 @@ import { FaFire } from "react-icons/fa";
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
-// Local-date key ("2026-10-01"). Not toISOString(), which is UTC and would put
-// a late-evening login on the next day.
-const toKey = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+// Local-date key ("YYYY-MM-DD") in the user's timezone.
+const toKey = (d) => d.toLocaleDateString("en-CA");
 
 // Placeholder until daily-login tracking exists. The shape is ready for it:
 // pass `activeDays` as date keys and `streak`/`longestStreak` as numbers, and
