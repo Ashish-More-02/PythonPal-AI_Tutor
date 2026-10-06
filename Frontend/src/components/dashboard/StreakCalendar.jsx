@@ -7,6 +7,14 @@ const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 // Local-date key ("YYYY-MM-DD") in the user's timezone.
 const toKey = (d) => d.toLocaleDateString("en-CA");
 
+const getDayClass = (date, active, todayKey, today, isDarkMode) => {
+  const key = toKey(date);
+  if (active.has(key)) return "bg-emerald-500 text-white font-semibold";
+  if (key === todayKey) return "ring-2 ring-emerald-500 font-semibold";
+  if (date > today) return isDarkMode ? "text-gray-700" : "text-gray-300";
+  return isDarkMode ? "bg-gray-800/60 text-gray-400" : "bg-gray-100 text-gray-500";
+};
+
 // Placeholder until daily-login tracking exists. The shape is ready for it:
 // pass `activeDays` as date keys and `streak`/`longestStreak` as numbers, and
 // those days turn green.
@@ -16,14 +24,17 @@ const StreakCalendar = ({ isDarkMode, activeDays = [], streak = 0, longestStreak
 
   const active = new Set(activeDays);
   const todayKey = toKey(today);
-  const isCurrentMonth = month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth();
 
-  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const year = month.getFullYear();
+  const monthIdx = month.getMonth();
+  const isCurrentMonth = year === today.getFullYear() && monthIdx === today.getMonth();
+
+  const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
   // getDay() is Sunday-first; the grid is Monday-first.
   const leadingBlanks = (month.getDay() + 6) % 7;
   const cells = [
     ...Array(leadingBlanks).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => new Date(month.getFullYear(), month.getMonth(), i + 1)),
+    ...Array.from({ length: daysInMonth }, (_, i) => new Date(year, monthIdx, i + 1)),
   ];
 
   const shiftMonth = (delta) => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
@@ -85,22 +96,16 @@ const StreakCalendar = ({ isDarkMode, activeDays = [], streak = 0, longestStreak
         <div className="mt-2 grid grid-cols-7 gap-1">
           {cells.map((date, i) => {
             if (!date) return <span key={`blank-${i}`} />;
-            const key = toKey(date);
-            const isActive = active.has(key);
-            const isToday = key === todayKey;
-            const isFuture = date > today;
             return (
               <span
-                key={key}
-                className={`aspect-square flex items-center justify-center rounded-lg text-xs transition-colors ${
-                  isActive
-                    ? "bg-emerald-500 text-white font-semibold"
-                    : isToday
-                    ? "ring-2 ring-emerald-500 font-semibold"
-                    : isFuture
-                    ? isDarkMode ? "text-gray-700" : "text-gray-300"
-                    : isDarkMode ? "bg-gray-800/60 text-gray-400" : "bg-gray-100 text-gray-500"
-                }`}
+                key={toKey(date)}
+                className={`aspect-square flex items-center justify-center rounded-lg text-xs transition-colors ${getDayClass(
+                  date,
+                  active,
+                  todayKey,
+                  today,
+                  isDarkMode
+                )}`}
               >
                 {date.getDate()}
               </span>
